@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Grid Calc">
+<title>Grid Calc</title>
+<style>
+  body{font-family:-apple-system,sans-serif;margin:0;padding:12px;background:#f4f5f7;color:#222}
+  h2{font-size:18px;margin:16px 0 8px}
+  .card{background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  label{font-size:12px;color:#666;display:block}
+  input,select{width:100%;box-sizing:border-box;font-size:16px;padding:8px;border:1px solid #ccc;border-radius:8px}
+  .full{grid-column:1/3}
+  button{width:100%;padding:12px;font-size:17px;border:0;border-radius:10px;background:#0a7cff;color:#fff;margin-top:8px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:5px 4px;text-align:right;border-bottom:1px solid #eee}
+  th{background:#f0f2f5}
+  tr.cut{background:#ffe9e9;font-weight:bold}
+  .neg{color:#d32f2f}.pos{color:#2e7d32}
+  .warn{background:#fff3cd;padding:8px;border-radius:8px;font-size:14px}
+  .kv{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="grid">
+    <div><label>ฝั่ง</label>
+      <select id="side"><option>BUY</option><option>SELL</option></select></div>
+    <div><label>ราคาไม้ที่ 1</label><input id="entry" type="number" step="0.01" value="3743.65"></div>
+    <div><label>ระยะห่างต่อไม้ (USD)</label><input id="step" type="number" step="0.01" value="4"></div>
+    <div><label>Leverage 1:</label><input id="lev" type="number" value="200"></div>
+    <div class="full"><label>Lot ตามตาราง (คั่นด้วย ,)</label>
+      <input id="lots" value="0.01,0.02,0.03,0.05,0.07,0.10,0.15,0.22,0.33,0.50,0.75,1.00,1.50"></div>
+    <div><label>ปิดชุดแรกที่ไม้</label><input id="cut" type="number" value="5"></div>
+    <div><label>กลับตัวที่ไม้</label><input id="rev" type="number" value="10"></div>
+    <div><label>ขาดทุนสูงสุด/วัน</label><input id="maxLoss" type="number" value="200"></div>
+    <div><label>เผื่อค่าใช้จ่าย</label><input id="buf" type="number" value="16"></div>
+    <div class="full"><label>เป้ากำไรสุทธิ (USD)</label><input id="target" type="number" value="100"></div>
+  </div>
+  <button onclick="calc()">คำนวณ</button>
+</div>
+
+<div id="out"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const IDS = ["side","entry","step","lev","lots","cut","rev","maxLoss","buf","target"];
+const f = n => n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const cls = n => n < 0 ? "neg" : (n > 0 ? "pos" : "");
+
+IDS.forEach(id => { const v = localStorage.getItem("gc_"+id); if (v !== null) $(id).value = v; });
+
+function calc(){
+  IDS.forEach(id => localStorage.setItem("gc_"+id, $(id).value));
+  const d = $("side").value === "BUY" ? 1 : -1, C = 100;
+  const entry = +$("entry").value, step = +$("step").value, lev = +$("lev").value;
+  const lots = $("lots").value.split(",").map(Number).filter(x => x > 0);
+  const cut = +$("cut").value, rev = +$("rev").value;
+  const maxLoss = +$("maxLoss").value, buf = +$("buf").value, target = +$("target").value;
+  const split = [0.44, 0.32, 0.24];
+
+  const price = i => +(entry - d*(i-1)*step).toFixed(2);
+  const pnl = (pos, p) => pos.reduce((s,[e,l]) => s + l*C*d*(p-e), 0);
+
+  // ตารางเปิดสะสมชุดแรก
+  let pos = [], rows = "";
+  lots.forEach((l,k) => {
+    const i = k+1, p = price(i);
+    pos.push([p,l]);
+    const tl = pos.reduce((s,x) => s + x[1], 0), fl = pnl(pos,p);
+    rows += `<tr${i===cut?' class="cut"':''}><td>${i}</td><td>${f(p)}</td><td>${l.toFixed(2)}</td>
+      <td>${tl.toFixed(2)}</td><td class="${cls(fl)}">${f(fl)}</td><td>${f(tl*C*p/lev)}</td></tr>`;
+  });
+
+  // ขาดทุนตอนปิดชุดแรก
+  const cutPos = lots.slice(0,cut).map((l,k) => [price(k+1), l]);
+  const cutLoss = +(-pnl(cutPos, price(cut))).toFixed(2);
+  const budget = +(maxLoss - cutLoss - buf).toFixed(2);
+
+  let html = `<div class="card"><h2>ชุดแรก (${$("side").value})</h2>
+    <table><tr><th>ไม้</th><th>ราคา</th><th>Lot</th><th>Lots รวม</th><th>ลอยตัว</th><th>Margin</th></tr>${rows}</table></div>`;
+
+  if (budget <= 0) {
+    html += `<div class="card warn">งบขาดทุนไม่พอสำหรับรอบใหม่ (ขาดทุนตอนปิด ${f(cutLoss)} + เผื่อค่าใช้จ่าย ${f(buf)} เกิน ${f(maxLoss)})</div>`;
+    $("out").innerHTML = html; return;
+  }
+
+  // แผนเข้าใหม่
+  const sl = price(rev+1);
+  let entries = [], er = "";
+  split.forEach((share,j) => {
+    const lvl = rev - j; if (lvl < 1) return;
+    const p = price(lvl), dist = Math.abs(p - sl);
+    const lot = Math.floor(budget*share/(C*dist)/0.01 + 1e-9) * 0.01;
+    const risk = lot*C*dist;
+    entries.push({lvl, p, lot, risk});
+    er += `<tr><td>${lvl}</td><td>${f(p)}</td><td>${lot.toFixed(2)}</td><td>${f(dist)}</td><td class="neg">${f(-risk)}</td></tr>`;
+  });
+
+  const total = entries.reduce((s,e) => s + e.lot, 0);
+  if (total <= 0) {
+    html += `<div class="card warn">Lot ที่คำนวณได้เป็น 0 — งบน้อยเกินไปหรือระยะ Stop Loss ไกลเกินไป</div>`;
+    $("out").innerHTML = html; return;
+  }
+  const base = C * entries.reduce((s,e) => s + e.lot*e.p, 0);
+  const tp = t => (base + d*t) / (C*total);
+  const worst = cutLoss + entries.reduce((s,e) => s + e.risk, 0);
+
+  html += `<div class="card"><h2>เข้าใหม่เมื่อกลับตัวที่ไม้ ${rev}</h2>
+    <table><tr><th>ไม้</th><th>ราคาเข้า</th><th>Lot</th><th>ระยะ SL</th><th>เสี่ยง</th></tr>${er}</table>
+    <div class="kv"><span>ขาดทุนตอนปิดชุดแรก</span><b class="neg">${f(-cutLoss)}</b></div>
+    <div class="kv"><span>งบความเสี่ยงรอบใหม่</span><b>${f(budget)}</b></div>
+    <div class="kv"><span>Stop Loss ร่วม</span><b>${f(sl)}</b></div>
+    <div class="kv"><span>Lots รวมรอบใหม่</span><b>${total.toFixed(2)}</b></div>
+    <div class="kv"><span>แย่สุดถ้าโดน SL (ก่อนค่าใช้จ่าย)</span><b class="neg">${f(-worst)}</b></div>
+    <div class="kv"><span>ราคาเท่าทุนทั้งแผน</span><b>${f(tp(cutLoss))}</b></div>
+    <div class="kv"><span>ปิดเพื่อกำไร ${f(target)} (ก่อนค่าใช้จ่าย)</span><b class="pos">${f(tp(target+cutLoss))}</b></div>
+    <div class="kv"><span>ปิดเพื่อกำไร ${f(target)} (หลังค่าใช้จ่าย)</span><b class="pos">${f(tp(target+cutLoss+buf))}</b></div>
+  </div>
+  <div class="card warn">ใช้คำนวณเท่านั้น ไม่รวม swap · Stop Loss อาจปิดคลาดเคลื่อนเมื่อราคากระโดด · ได้เป้าหรือใกล้เพดานขาดทุนแล้วให้หยุดวันนั้น</div>`;
+
+  $("out").innerHTML = html;
+}
+calc();
+</script>
+</body>
+</html>
