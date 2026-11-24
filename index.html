@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Grid Calc">
-<title>Grid Calc</title>
+<title>Grid Calc v3</title>
 <style>
   body{font-family:-apple-system,sans-serif;margin:0;padding:12px;background:#f4f5f7;color:#222}
   h2{font-size:17px;margin:4px 0 10px}
@@ -14,165 +14,291 @@
   .full{grid-column:1/3}
   .sec{grid-column:1/3;font-size:13px;font-weight:bold;color:#0a7cff;margin-top:6px;border-top:1px solid #eee;padding-top:8px}
   label{font-size:12px;color:#666;display:block;margin-bottom:2px}
-  input,select{width:100%;box-sizing:border-box;font-size:16px;padding:8px;border:1px solid #ccc;border-radius:8px}
+  input,select{width:100%;box-sizing:border-box;font-size:16px;padding:8px;border:1px solid #ccc;border-radius:8px;background:#fff}
   button{width:100%;padding:13px;font-size:17px;border:0;border-radius:10px;background:#0a7cff;color:#fff;margin-top:10px}
+  button.sub{background:#e8f0fe;color:#0a7cff;font-size:14px;padding:9px;margin-top:0}
+  button.del{width:auto;padding:4px 8px;font-size:12px;background:#eee;color:#d32f2f;margin:0}
+  .tw{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{padding:6px 4px;text-align:right;border-bottom:1px solid #eee}
+  th,td{padding:6px 4px;text-align:right;border-bottom:1px solid #eee;white-space:nowrap}
   th{background:#f0f2f5}
+  td.l,th.l{text-align:left;white-space:normal}
   tr.cut{background:#ffe9e9;font-weight:bold}
-  tr.re{background:#e6f2ff}
   .big{font-size:16px;font-weight:bold}
   .neg{color:#d32f2f}.pos{color:#2e7d32}
-  .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
-  .warn{background:#fff3cd;padding:10px;border-radius:8px;font-size:14px}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
+  .kv b{text-align:right}
+  .warn{background:#fff3cd}.ok{background:#e6f4ea}.stop{background:#fdecea}
   .hint{font-size:11px;color:#888;margin-top:4px}
+  ol{padding-left:20px;margin:6px 0;font-size:14px} li{margin-bottom:6px}
 </style>
 </head>
 <body>
 
 <div class="card">
   <div class="grid">
-    <div class="sec">ชุดแรก (Grid)</div>
-    <div><label>ฝั่ง</label>
-      <select id="side"><option>BUY</option><option>SELL</option></select></div>
+    <div class="sec">1) บัญชีและงบประจำวัน</div>
+    <div><label>ยอดเงินในพอร์ต (USD)</label><input id="bal" type="number" step="0.01" value="4000"></div>
+    <div><label>ขาดทุนสูงสุด/วัน</label><input id="maxLoss" type="number" step="0.01" value="200"></div>
+    <div><label>ขาดทุนสะสมวันนี้ (ก่อนรอบนี้)</label><input id="dayLoss" type="number" step="0.01" value="0"></div>
+    <div><label>เผื่อค่าใช้จ่าย</label><input id="buf" type="number" step="0.01" value="16"></div>
+    <div><label>เป้ากำไรสุทธิ/วัน</label><input id="target" type="number" step="0.01" value="100"></div>
+    <div><label>ขนาดสัญญา (oz ต่อ 1 lot)</label><input id="cs" type="number" value="100"></div>
+    <div class="full"><button class="sub" onclick="pullToday()">ดึงขาดทุนวันนี้จากประวัติ</button></div>
+
+    <div class="sec">2) ชุดแรก (Grid)</div>
+    <div><label>ฝั่ง</label><select id="side"><option>BUY</option><option>SELL</option></select></div>
     <div><label>ราคาไม้ที่ 1</label><input id="entry" type="number" step="0.01" value="3743.65"></div>
     <div><label>ระยะห่างต่อไม้ (USD)</label><input id="step" type="number" step="0.01" value="4"></div>
     <div><label>Leverage 1:</label><input id="lev" type="number" value="200"></div>
     <div class="full"><label>Lot ตามตาราง (คั่นด้วย ,)</label>
       <input id="lots" value="0.01,0.02,0.03,0.05,0.07,0.10,0.15,0.22,0.33,0.50,0.75,1.00,1.50"></div>
-    <div class="full"><label>ปิดชุดแรกที่ไม้</label><input id="cut" type="number" value="5"></div>
+    <div><label>ตัดชุดแรกที่ไม้</label><input id="cut" type="number" value="5"></div>
+    <div><label>เป้ากำไรชุดแรก (USD)</label><input id="firstTP" type="number" step="0.01" value="100"></div>
 
-    <div class="sec">จุดกลับตัว → เข้าใหม่ 3 ไม้</div>
-    <div><label>ราคาจุดกลับตัว (ต่ำสุด/สูงสุด)</label>
-      <input id="low" type="number" step="0.01" value="3694.00"></div>
-    <div><label>SL เลยจุดกลับตัว (USD)</label>
-      <input id="slBuf" type="number" step="0.01" value="2"></div>
-    <div class="full"><label>สัดส่วนงบเสี่ยง 3 ไม้ (คั่นด้วย ,)</label>
-      <input id="split" value="1,1,1">
-      <div class="hint">1,1,1 = ทุกไม้เสี่ยงเท่ากัน · 44,32,24 = ให้น้ำหนักไม้แรกมากกว่า</div></div>
-
-    <div class="sec">เงินและเป้าหมาย</div>
-    <div><label>ขาดทุนสูงสุด/วัน</label><input id="maxLoss" type="number" value="200"></div>
-    <div><label>เผื่อค่าใช้จ่าย</label><input id="buf" type="number" value="16"></div>
-    <div class="full"><label>เป้ากำไรสุทธิ (USD)</label><input id="target" type="number" value="100"></div>
+    <div class="sec">3) จุดกลับตัว → เข้าใหม่ 3 ไม้</div>
+    <div><label>ราคาต่ำสุด/สูงสุดที่กลับตัว</label><input id="low" type="number" step="0.01" value="3694.00"></div>
+    <div><label>SL เลยจุดกลับตัว (USD)</label><input id="slBuf" type="number" step="0.01" value="2"></div>
+    <div><label>ราคาเข้าจริงหลังยืนยัน</label><input id="realEntry" type="number" step="0.01" placeholder="ว่าง = ระดับ Grid"></div>
+    <div><label>ระยะห่างไม้ 2–3 (USD)</label><input id="reStep" type="number" step="0.01" placeholder="ว่าง = เท่าระยะ Grid"></div>
+    <div><label>ขาดทุนจริงตอนตัดชุดแรก</label><input id="cutReal" type="number" step="0.01" placeholder="ว่าง = คำนวณให้"></div>
+    <div><label>สัดส่วนงบ 3 ไม้</label><input id="split" value="1,1,1"></div>
+    <div class="full hint">ราคาต่ำสุด → ใช้วาง SL · ราคาเข้าจริง → ใช้คำนวณ Lot · 1,1,1 = ทุกไม้เสี่ยงเท่ากัน</div>
   </div>
   <button onclick="calc()">คำนวณ</button>
 </div>
 
 <div id="out"></div>
 
+<div class="card">
+  <h2>บันทึกผลการเทรด (1 รายการต่อ 1 รอบแผน)</h2>
+  <div class="grid">
+    <div><label>ผล</label><select id="lgSign"><option value="1">กำไร</option><option value="-1">ขาดทุน</option></select></div>
+    <div><label>จำนวน (USD)</label><input id="lgPnl" type="number" step="0.01" placeholder="เช่น 84"></div>
+    <div class="full"><label>รูปแบบ</label><select id="lgType">
+      <option>กลับตัวก่อนตัด – ชุดแรกปิดกำไร</option>
+      <option>ตัดชุดแรก → เข้าใหม่ปิดกำไร</option>
+      <option>ตัดชุดแรก → เข้าใหม่โดน SL</option>
+      <option>ตัดชุดแรก → ไม่ได้เข้าใหม่</option>
+      <option>อื่น ๆ</option></select></div>
+    <div class="full"><label>หมายเหตุ</label><input id="lgNote" placeholder="เช่น ราคาเข้า/ออก, สัญญาณที่ใช้"></div>
+  </div>
+  <button onclick="addLog()">บันทึกผล</button>
+  <div id="logOut"></div>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
-const IDS = ["side","entry","step","lev","lots","cut","low","slBuf","split","maxLoss","buf","target"];
-const C = 100; // 1 lot = 100 oz
-const f = n => n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const IDS = ["bal","maxLoss","dayLoss","buf","target","cs","side","entry","step","lev","lots","cut","firstTP","low","slBuf","realEntry","reStep","split","cutReal"];
+const KEY = "gc3_", LOGKEY = "gc3_log";
+const f = n => isFinite(n) ? n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : "—";
+const pct = n => isFinite(n) ? (n*100).toFixed(1) + "%" : "—";
 const cls = n => n < 0 ? "neg" : (n > 0 ? "pos" : "");
+const num = id => { const v = $(id).value.trim(); return v === "" || isNaN(+v) ? null : +v; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const card = (body, c = "") => `<div class="card ${c}">${body}</div>`;
+let REQ_WR = null;
 
-IDS.forEach(id => { const v = localStorage.getItem("gc2_"+id); if (v !== null) $(id).value = v; });
+IDS.forEach(id => { const v = localStorage.getItem(KEY + id); if (v !== null) $(id).value = v; });
 
 function calc(){
-  IDS.forEach(id => localStorage.setItem("gc2_"+id, $(id).value));
-  const side = $("side").value, d = side === "BUY" ? 1 : -1;
-  const entry = +$("entry").value, step = +$("step").value, lev = +$("lev").value;
-  const lots = $("lots").value.split(",").map(Number).filter(x => x > 0);
-  const cut = +$("cut").value, low = +$("low").value, slBuf = +$("slBuf").value;
-  const w = $("split").value.split(",").map(Number).filter(x => x > 0);
-  const maxLoss = +$("maxLoss").value, buf = +$("buf").value, target = +$("target").value;
-  const out = $("out");
+  IDS.forEach(id => localStorage.setItem(KEY + id, $(id).value));
+  REQ_WR = null;
+  $("out").innerHTML = build();
+  renderLog();
+}
 
-  if (step <= 0 || cut < 1 || lots.length < cut || w.length === 0 || slBuf < 0) {
-    out.innerHTML = `<div class="card warn">ตรวจค่าที่กรอก: ระยะห่างต้องมากกว่า 0, Lot ในตารางต้องครบถึงไม้ที่ปิด, ต้องมีสัดส่วนงบ และระยะ SL ต้องไม่ติดลบ</div>`;
-    return;
-  }
+function build(){
+  const side = $("side").value, d = side === "BUY" ? 1 : -1;
+  const bal = num("bal") ?? 0, maxLoss = num("maxLoss") ?? 0;
+  const dayLoss = Math.abs(num("dayLoss") ?? 0);
+  const buf = Math.abs(num("buf") ?? 0), target = num("target") ?? 0;
+  const C = num("cs") > 0 ? num("cs") : 100;
+  const entry = num("entry"), step = num("step"), lev = num("lev") > 0 ? num("lev") : 1;
+  const lots = $("lots").value.split(",").map(Number).filter(x => x > 0);
+  const cut = Math.round(num("cut") ?? 0), firstTP = num("firstTP") ?? 0;
+  const low = num("low"), slBuf = Math.abs(num("slBuf") ?? 0);
+  const realEntry = num("realEntry");
+  const rs = num("reStep") > 0 ? num("reStep") : step;
+  const w = $("split").value.split(",").map(Number).filter(x => x > 0);
+  const cutReal = num("cutReal");
+
+  if (entry === null || !(step > 0) || cut < 2 || lots.length < cut - 1 || !w.length)
+    return card("ตรวจค่าที่กรอก: ต้องมีราคาไม้ที่ 1, ระยะห่างมากกว่า 0, ไม้ที่ตัดตั้งแต่ 2 ขึ้นไป, Lot ครบถึงไม้ก่อนตัด และสัดส่วนงบอย่างน้อย 1 ค่า", "warn");
 
   const price = i => +(entry - d*(i-1)*step).toFixed(2);
-  const pnl = (pos, p) => pos.reduce((s,[e,l]) => s + l*C*d*(p - e), 0);
+  const pnl = (pos, P) => pos.reduce((s, x) => s + x.lot*C*d*(P - x.p), 0);
+  let html = "";
 
-  // หาระดับเข้าใหม่: ระดับ grid แรกที่อยู่ถัดจากจุดกลับตัวไปทางราคาฟื้น แล้วไล่อีก 2 ระดับ
-  const k = d*(entry - low)/step;
-  const i1 = Math.ceil(k - 1e-9);
-  const lvls = [];
-  for (let j = 0; j < 3 && i1 - j >= 1; j++) lvls.push(i1 - j);
+  // ---------- สถานะวันนี้ ----------
+  const tn = todayNet(), left = maxLoss - dayLoss;
+  html += card(`<h2>สถานะวันนี้</h2>
+    <div class="kv"><span>ผลสุทธิจากประวัติวันนี้</span><b class="${cls(tn)}">${f(tn)}</b></div>
+    <div class="kv"><span>ขาดทุนสะสมที่ใช้คำนวณ</span><b class="neg">${f(-dayLoss)}</b></div>
+    <div class="kv"><span>งบขาดทุนที่เหลือวันนี้</span><b>${f(left)}</b></div>`);
+  if (target > 0 && tn >= target) html += card("ถึงเป้ากำไรวันนี้แล้ว — แนะนำให้หยุดเทรด", "ok");
+  if (left <= buf) return html + card("งบขาดทุนวันนี้หมดแล้ว — หยุดเทรด ไม่เริ่มรอบใหม่เพื่อเอาคืน", "stop");
 
-  // ตารางชุดแรก
-  let pos = [], rows = "";
-  lots.forEach((l, idx) => {
-    const i = idx + 1, p = price(i);
-    pos.push([p, l]);
-    const tl = pos.reduce((s,x) => s + x[1], 0), fl = pnl(pos, p);
-    const c = i === cut ? ' class="cut"' : (lvls.includes(i) ? ' class="re"' : '');
-    rows += `<tr${c}><td>${i}</td><td>${f(p)}</td><td>${l.toFixed(2)}</td><td>${tl.toFixed(2)}</td>
-      <td class="${cls(fl)}">${f(fl)}</td><td>${f(tl*C*p/lev)}</td></tr>`;
-  });
-  let html = `<div class="card"><h2>ชุดแรก (${side})</h2>
-    <table><tr><th>ไม้</th><th>ราคา</th><th>Lot</th><th>Lots รวม</th><th>ลอยตัว</th><th>Margin</th></tr>${rows}</table>
-    <div class="hint">แดง = ไม้ที่ปิดชุดแรก · ฟ้า = ระดับที่เข้าใหม่หลังกลับตัว</div></div>`;
-
-  // ราคากลับตัวก่อนถึงไม้ที่ต้องปิด
+  // ---------- ชุดแรก ----------
+  const pos = []; let rows = "";
+  for (let i = 1; i < cut; i++) {
+    const p = price(i), lot = lots[i-1];
+    pos.push({ p, lot });
+    const tl = pos.reduce((s, x) => s + x.lot, 0);
+    const base = pos.reduce((s, x) => s + x.lot*x.p, 0);
+    const fl = pnl(pos, p);
+    const ml = (bal - dayLoss + fl) / (tl*C*p/lev) * 100;
+    const tp = (C*base + d*(firstTP + buf)) / (C*tl);
+    rows += `<tr><td>${i}</td><td>${f(p)}</td><td>${lot.toFixed(2)}</td><td>${tl.toFixed(2)}</td>
+      <td class="${cls(fl)}">${f(fl)}</td><td>${isFinite(ml) ? ml.toFixed(0) + "%" : "—"}</td><td class="pos">${f(tp)}</td></tr>`;
+  }
   const cutPrice = price(cut);
-  if (d*(cutPrice - low) < 0) {
-    html += `<div class="card warn">ราคากลับตัวก่อนถึงไม้ ${cut} (${f(cutPrice)}) ชุดแรกยังไม่ถูกปิด จึงไม่ต้องใช้แผนเข้าใหม่</div>`;
-    out.innerHTML = html; return;
-  }
+  const theoCut = -pnl(pos, cutPrice);
+  rows += `<tr class="cut"><td>${cut}</td><td>${f(cutPrice)}</td><td colspan="2">ปิดทั้งหมด</td><td class="neg">${f(-theoCut)}</td><td></td><td></td></tr>`;
+  html += card(`<h2>ชุดแรก (${side})</h2><div class="tw"><table>
+    <tr><th>ไม้</th><th>ราคา</th><th>Lot</th><th>Lots รวม</th><th>ลอยตัว</th><th>Margin Lv</th><th>ปิดกำไร ${f(firstTP)}</th></tr>${rows}</table></div>
+    <div class="hint">คอลัมน์สุดท้าย: ถ้าราคากลับตัวหลังเปิดถึงไม้นั้น ให้ปิดทุกไม้ที่ราคานี้ จะได้กำไรสุทธิตามเป้า (เผื่อค่าใช้จ่ายแล้ว) · แถวแดง = ราคาที่ตัดชุดแรก</div>`);
 
-  const cutPos = lots.slice(0, cut).map((l, idx) => [price(idx+1), l]);
-  const cutLoss = +(-pnl(cutPos, cutPrice)).toFixed(2);
-  const budget = +(maxLoss - cutLoss - buf).toFixed(2);
-  if (budget <= 0) {
-    html += `<div class="card warn">งบไม่พอ: ขาดทุนตอนปิด ${f(cutLoss)} + เผื่อค่าใช้จ่าย ${f(buf)} เกินเพดาน ${f(maxLoss)} ควรหยุดวันนี้</div>`;
-    out.innerHTML = html; return;
-  }
+  // ---------- จุดกลับตัว ----------
+  if (low === null) return html + card("กรอก “ราคาต่ำสุด/สูงสุดที่กลับตัว” เพื่อคำนวณแผนเข้าใหม่", "warn");
+  if (d*(cutPrice - low) < 0)
+    return html + card(`ราคากลับตัวก่อนถึงไม้ ${cut} (${f(cutPrice)}) — ชุดแรกยังไม่ถูกตัด ให้ใช้ราคาปิดกำไรในตารางชุดแรก`, "ok");
+
+  const cutLoss = cutReal !== null ? Math.abs(cutReal) : theoCut;
+  const realized = dayLoss + cutLoss;
+  const budget = maxLoss - realized - buf;
+  if (budget <= 0)
+    return html + card(`งบไม่พอ: ขาดทุนสะสม ${f(dayLoss)} + ตัดชุดแรก ${f(cutLoss)} + เผื่อค่าใช้จ่าย ${f(buf)} เกินเพดาน ${f(maxLoss)} — หยุดวันนี้`, "stop");
 
   const sl = +(low - d*slBuf).toFixed(2);
-  const ws = lvls.map((_, j) => w[j] ?? w[w.length-1]);
-  const sw = ws.reduce((a,b) => a + b, 0);
-
-  const E = lvls.map((lvl, j) => {
-    const p = price(lvl);
-    const toLow = d*(p - low), dist = d*(p - sl);
-    const lot = Math.floor(budget*ws[j]/sw/(C*dist)*100 + 1e-9) / 100;
-    return { lvl, p, toLow, dist, lot, risk: lot*C*dist };
-  });
-
-  const total = +E.reduce((s,e) => s + e.lot, 0).toFixed(2);
-  if (total <= 0) {
-    html += `<div class="card warn">Lot เป็น 0 ทั้งหมด — งบน้อยเกินไป หรือ SL ไกลเกินไป</div>`;
-    out.innerHTML = html; return;
+  let e1, src;
+  if (realEntry !== null) { e1 = realEntry; src = "ใช้ราคาเข้าจริงที่กรอก"; }
+  else {
+    const i1 = Math.max(1, Math.ceil(d*(entry - low)/step - 1e-9));
+    e1 = price(i1); src = `ใช้ระดับ Grid ไม้ ${i1} (ยังไม่ได้กรอกราคาเข้าจริง)`;
   }
+  if (d*(e1 - low) < 0) return html + card(`ราคาเข้าจริงต้องอยู่${d > 0 ? "สูงกว่า" : "ต่ำกว่า"}จุดกลับตัว ${f(low)}`, "warn");
+  if (d*(e1 - sl) <= 0) return html + card("ระยะจากราคาเข้าถึง SL เป็น 0 — เพิ่มระยะ SL เลยจุดกลับตัว", "warn");
 
-  let er = "", cum = 0, slRows = "";
-  E.forEach((e, n) => {
-    const opened = E.slice(0, n+1);
-    const atFill = opened.reduce((s,x) => s + x.lot*C*d*(e.p - x.p), 0) - cutLoss;
-    cum += e.risk;
-    er += `<tr><td>${e.lvl}</td><td>${f(e.p)}</td><td>${f(e.toLow)}</td><td>${f(e.dist)}</td>
-      <td class="big">${e.lot.toFixed(2)}</td><td class="neg">${f(-e.risk)}</td><td class="${cls(atFill)}">${f(atFill)}</td></tr>`;
-    slRows += `<div class="kv"><span>โดน SL หลังเปิด ${n+1} ไม้ (รวมที่ปิดแล้ว)</span><b class="neg">${f(-(cutLoss + cum))}</b></div>`;
+  const ws = [0,1,2].map(j => w[j] ?? w[w.length-1]);
+  const sw = ws.reduce((a, b) => a + b, 0);
+  const E = ws.map((wj, j) => {
+    const p = +(e1 + d*j*rs).toFixed(2);
+    const dist = d*(p - sl);
+    const lot = Math.floor(budget*wj/sw/(C*dist)*100 + 1e-9) / 100;
+    return { n: j+1, p, toLow: d*(p - low), dist, lot, risk: lot*C*dist };
   });
+  const total = +E.reduce((s, e) => s + e.lot, 0).toFixed(2);
+  if (total <= 0) return html + card("Lot เป็น 0 ทั้งหมด — งบน้อยเกินไป หรือ SL ไกลเกินไป ไม่ควรเข้ารอบนี้", "warn");
+  const riskAll = E.reduce((s, e) => s + e.risk, 0);
 
-  const base = C * E.reduce((s,e) => s + e.lot*e.p, 0);
-  const tp = t => (base + d*t) / (C*total);
-
-  html += `<div class="card"><h2>เข้าใหม่หลังกลับตัวที่ ${f(low)}</h2>
-    <table><tr><th>ไม้</th><th>ราคาเข้า</th><th>ห่างจุดกลับตัว</th><th>ห่าง SL</th><th>Lot</th><th>เสี่ยง</th><th>ผลรวมตอนเปิด*</th></tr>${er}
-    <tr><th>รวม</th><th></th><th></th><th></th><th>${total.toFixed(2)}</th><th class="neg">${f(-cum)}</th><th></th></tr></table>
-    <div class="hint">*รวมขาดทุนที่ปิดชุดแรกไปแล้ว ณ ราคาที่เปิดไม้นั้น</div></div>
-
-  <div class="card"><h2>สรุป</h2>
-    <div class="kv"><span>ขาดทุนตอนปิดชุดแรก (ไม้ ${cut})</span><b class="neg">${f(-cutLoss)}</b></div>
-    <div class="kv"><span>งบเสี่ยงรอบใหม่</span><b>${f(budget)}</b></div>
-    <div class="kv"><span>ใช้จริง / เหลือจากการปัด Lot</span><b>${f(cum)} / ${f(budget - cum)}</b></div>
+  let er = "";
+  E.forEach(e => {
+    er += `<tr><td>${e.n}</td><td>${f(e.p)}</td><td>${f(e.toLow)}</td><td>${f(e.dist)}</td>
+      <td class="big">${e.lot.toFixed(2)}</td><td class="neg">${f(-e.risk)}</td></tr>`;
+  });
+  html += card(`<h2>เข้าใหม่ 3 ไม้</h2>
+    <div class="kv"><span>ราคาเข้าไม้แรก</span><b>${f(e1)}</b></div>
+    <div class="hint">${src}</div>
     <div class="kv"><span>Stop Loss ร่วม</span><b>${f(sl)}</b></div>
-    ${slRows}
-    <div class="kv"><span>ราคาเท่าทุนทั้งแผน (เปิดครบ)</span><b>${f(tp(cutLoss))}</b></div>
-    <div class="kv"><span>ปิดได้กำไร ${f(target)} (ก่อนค่าใช้จ่าย)</span><b class="pos">${f(tp(target + cutLoss))}</b></div>
-    <div class="kv"><span>ปิดได้กำไร ${f(target)} (หลังค่าใช้จ่าย)</span><b class="pos">${f(tp(target + cutLoss + buf))}</b></div>
-    <div class="kv"><span>ราคาขยับ 1 USD (เปิดครบ)</span><b>${f(total*C)} USD</b></div>
-  </div>
-  <div class="card warn">เปิดไม้ 2–3 เฉพาะเมื่อราคาฟื้นไปถึงจริง · ห้ามถัวเพิ่มตอนราคาสวน · โดน SL หรือถึงเป้าแล้วหยุดวันนั้น · ยังไม่รวม swap และ SL อาจคลาดเคลื่อนเมื่อราคากระโดด</div>`;
+    <div class="kv"><span>งบเสี่ยงรอบนี้ / ใช้จริง</span><b>${f(budget)} / ${f(riskAll)}</b></div>
+    <div class="tw"><table><tr><th>ไม้</th><th>ราคาเข้า</th><th>ห่างจุดกลับตัว</th><th>ห่าง SL</th><th>Lot</th><th>เสี่ยง</th></tr>${er}
+    <tr><th>รวม</th><th></th><th></th><th></th><th>${total.toFixed(2)}</th><th class="neg">${f(-riskAll)}</th></tr></table></div>`);
 
-  out.innerHTML = html;
+  // ---------- แต่ละขั้น ----------
+  let st = "";
+  for (let n = 1; n <= 3; n++) {
+    const sub = E.slice(0, n);
+    const tl = sub.reduce((s, e) => s + e.lot, 0);
+    const cr = sub.reduce((s, e) => s + e.risk, 0);
+    if (tl <= 0) { st += `<tr><td class="l">${n} ไม้</td><td>0.00</td><td>—</td><td>—</td><td class="neg">${f(-(realized + cr))}</td></tr>`; continue; }
+    const base = C*sub.reduce((s, e) => s + e.lot*e.p, 0);
+    const be = (base + d*realized) / (C*tl);
+    const tp = (base + d*(target + realized + buf)) / (C*tl);
+    const early = n < 3 && E[n].lot > 0 && d*(tp - E[n].p) <= 0 ? " *" : "";
+    st += `<tr><td class="l">${n} ไม้</td><td>${tl.toFixed(2)}</td><td>${f(be)}</td><td class="pos">${f(tp)}${early}</td><td class="neg">${f(-(realized + cr))}</td></tr>`;
+  }
+  html += card(`<h2>เท่าทุนและปิดกำไร แต่ละขั้น</h2>
+    <div class="tw"><table><tr><th class="l">เปิดแล้ว</th><th>Lots</th><th>เท่าทุนทั้งวัน</th><th>ปิดกำไร ${f(target)}</th><th>ถ้าโดน SL</th></tr>${st}</table></div>
+    <div class="hint">รวมขาดทุนวันนี้ ${f(realized)} แล้ว · ราคาปิดกำไรเผื่อค่าใช้จ่ายแล้ว · * = ถึงเป้าก่อนต้องเปิดไม้ถัดไป ปิดได้เลย · ถ้าเปิดไม่ครบ ให้ดูแถวที่ตรงกับจำนวนไม้ที่ถือจริง</div>`);
+
+  // ---------- ความเสี่ยงและอัตราชนะ ----------
+  const lossPlan = cutLoss + riskAll;
+  REQ_WR = lossPlan / (lossPlan + target);
+  const worstDay = realized + riskAll;
+  let li = -1; E.forEach((e, i) => { if (e.lot > 0) li = i; });
+  const Pf = E[li].p;
+  const ml = (bal - realized + E.reduce((s, e) => s + e.lot*C*d*(Pf - e.p), 0)) / (total*C*Pf/lev) * 100;
+  html += card(`<h2>ความเสี่ยงและอัตราชนะ</h2>
+    <div class="kv"><span>รอบนี้ถ้าเสีย (ตัดชุดแรก + โดน SL)</span><b class="neg">${f(-lossPlan)}</b></div>
+    <div class="kv"><span>รอบนี้ถ้าได้</span><b class="pos">${f(target)}</b></div>
+    <div class="kv"><span>อัตราชนะขั้นต่ำที่ต้องได้</span><b>${pct(REQ_WR)}</b></div>
+    <div class="kv"><span>แย่สุดทั้งวัน</span><b class="neg">${f(-worstDay)} (${pct(worstDay/bal)} ของพอร์ต)</b></div>
+    <div class="kv"><span>ยอดพอร์ตถ้าโดน SL</span><b>${f(bal - worstDay)}</b></div>
+    <div class="kv"><span>Margin Level ตอนเปิดครบ</span><b>${isFinite(ml) ? ml.toFixed(0) + "%" : "—"}</b></div>
+    <div class="hint">อัตราชนะขั้นต่ำ = เสีย ÷ (เสีย + ได้) ถ้าชนะน้อยกว่านี้ ระยะยาวจะขาดทุน</div>`);
+
+  // ---------- กติกาเลื่อน SL ----------
+  const baseAll = C*E.reduce((s, e) => s + e.lot*e.p, 0);
+  const avgNew = baseAll / (C*total);
+  const beDay = (baseAll + d*realized) / (C*total);
+  const trig = beDay + d*rs;
+  let tr = "<ol>";
+  if (li > 0) tr += `<li>เมื่อเปิดไม้ ${li+1} ที่ ${f(E[li].p)} แล้ว → เลื่อน SL ไปที่ <b>${f(avgNew)}</b> (ทุนเฉลี่ยรอบใหม่) ถ้าโดน จะเสียทั้งวันเท่ากับที่ปิดไปแล้ว ${f(realized)}</li>`;
+  tr += `<li>เมื่อราคาถึง <b>${f(trig)}</b> → เลื่อน SL ไปที่ <b>${f(beDay)}</b> (เท่าทุนทั้งวัน) ถ้าโดน จะเสมอตัวก่อนค่าใช้จ่าย</li>`;
+  tr += `<li>ถึงราคาปิดกำไรของขั้นที่ถืออยู่ → ปิดทั้งหมดและหยุดวันนี้</li></ol>`;
+  html += card(`<h2>กติกาเลื่อน SL</h2>${tr}<div class="hint">คำนวณจากตอนเปิดครบ · เลื่อน SL ได้เฉพาะทางที่ลดความเสี่ยง ห้ามเลื่อนออกห่างเพื่อหนีขาดทุน</div>`);
+
+  html += card("เปิดไม้ 2–3 เฉพาะเมื่อราคาไปถึงจริง · ห้ามถัวเพิ่มตอนราคาสวน · ยังไม่รวม swap และ SL อาจคลาดเคลื่อนเมื่อราคากระโดด", "warn");
+  return html;
 }
+
+// ---------- บันทึกผล ----------
+function getLog(){ try { return JSON.parse(localStorage.getItem(LOGKEY)) || []; } catch (e) { return []; } }
+function setLog(a){ localStorage.setItem(LOGKEY, JSON.stringify(a)); }
+function todayStr(){ const t = new Date(); return t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0"); }
+function todayNet(){ return getLog().filter(x => x.d === todayStr()).reduce((s, x) => s + x.pnl, 0); }
+function pullToday(){ const n = todayNet(); $("dayLoss").value = n < 0 ? +(-n).toFixed(2) : 0; calc(); }
+
+function addLog(){
+  const v = num("lgPnl");
+  if (v === null) { alert("กรอกจำนวนเงิน (USD)"); return; }
+  const t = new Date(), a = getLog();
+  a.unshift({ d: todayStr(), t: String(t.getHours()).padStart(2,"0") + ":" + String(t.getMinutes()).padStart(2,"0"),
+    type: $("lgType").value, pnl: Math.abs(v) * +$("lgSign").value, note: $("lgNote").value.trim() });
+  setLog(a); $("lgPnl").value = ""; $("lgNote").value = "";
+  calc();
+}
+function delLog(i){ if (!confirm("ลบรายการนี้?")) return; const a = getLog(); a.splice(i, 1); setLog(a); calc(); }
+function clearLog(){ if (!confirm("ลบประวัติทั้งหมด?")) return; setLog([]); calc(); }
+function copyCSV(){
+  const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+  const csv = ["date,time,type,pnl,note"].concat(getLog().map(x => [x.d, x.t, q(x.type), x.pnl, q(x.note || "")].join(","))).join("\n");
+  if (navigator.clipboard) navigator.clipboard.writeText(csv).then(() => alert("คัดลอกแล้ว นำไปวางใน Numbers หรือ Excel ได้"), () => alert("คัดลอกไม่สำเร็จ"));
+  else alert("เบราว์เซอร์นี้คัดลอกอัตโนมัติไม่ได้");
+}
+function renderLog(){
+  const a = getLog();
+  const wins = a.filter(x => x.pnl > 0), losses = a.filter(x => x.pnl < 0);
+  const n = wins.length + losses.length;
+  const wr = n ? wins.length / n : NaN;
+  const avgW = wins.length ? wins.reduce((s, x) => s + x.pnl, 0) / wins.length : NaN;
+  const avgL = losses.length ? losses.reduce((s, x) => s + x.pnl, 0) / losses.length : NaN;
+  const sum = a.reduce((s, x) => s + x.pnl, 0);
+  const cmp = (REQ_WR !== null && n) ? (wr >= REQ_WR ? ' <span class="pos">ผ่าน</span>' : ' <span class="neg">ต่ำกว่าที่ต้องได้</span>') : "";
+  const rows = a.map((x, i) => `<tr><td class="l">${esc(x.d)} ${esc(x.t)}<br><small>${esc(x.type)}${x.note ? " · " + esc(x.note) : ""}</small></td>
+    <td class="${cls(x.pnl)}">${f(x.pnl)}</td><td><button class="del" onclick="delLog(${i})">ลบ</button></td></tr>`).join("");
+  $("logOut").innerHTML = `
+    <div class="kv"><span>จำนวนรอบ (ชนะ/แพ้)</span><b>${a.length} (${wins.length}/${losses.length})</b></div>
+    <div class="kv"><span>อัตราชนะจริง</span><b>${pct(wr)}${cmp}</b></div>
+    <div class="kv"><span>ต้องได้อย่างน้อย (แผนปัจจุบัน)</span><b>${REQ_WR !== null ? pct(REQ_WR) : "—"}</b></div>
+    <div class="kv"><span>กำไรเฉลี่ย / ขาดทุนเฉลี่ย</span><b>${f(avgW)} / ${f(avgL)}</b></div>
+    <div class="kv"><span>ผลรวมทั้งหมด</span><b class="${cls(sum)}">${f(sum)}</b></div>
+    ${n < 20 ? '<div class="hint">ควรมีอย่างน้อย 20–30 รอบก่อนสรุปอัตราชนะ</div>' : ""}
+    ${a.length ? `<div class="tw"><table>${rows}</table></div>
+      <div class="grid" style="margin-top:8px"><button class="sub" onclick="copyCSV()">คัดลอก CSV</button><button class="sub" onclick="clearLog()">ลบทั้งหมด</button></div>` : ""}`;
+}
+
 calc();
 </script>
 </body>
